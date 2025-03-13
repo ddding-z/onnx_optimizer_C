@@ -205,4 +205,10 @@ install(EXPORT ONNXOptimizerTargets DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/O
 install(TARGETS
   onnx_optimizer optimize_c_api
   EXPORT ONNXOptimizerTargets DESTINATION ${CMAKE_INSTALL_LIBDIR})
+# add onnx_optimizer, optimize_c_api into export set
+install(TARGETS
+      onnx_optimizer optimize_c_api
+      EXPORT "${DUCKDB_EXPORT_SET}"
+      LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
+      ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
 
