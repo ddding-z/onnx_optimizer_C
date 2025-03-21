@@ -1424,6 +1424,65 @@ void dfs(std::shared_ptr<TreeNode> node) {
   merge(node, right_merge_nodes_only, false);
 }
 
+void dfs_naive(std::shared_ptr<TreeNode> node) {
+  if (node->mode == "LEAF") {
+    return;
+  }
+  dfs_naive(node->left);
+  dfs_naive(node->right);
+  std::vector<std::tuple<std::shared_ptr<TreeNode>, int>> left_merge_nodes,
+      right_merge_nodes;
+  int left_merge_stats =
+      find_merge_nodes(node->left, 1, node, true, left_merge_nodes);
+  if (left_merge_stats == M_NO) {
+    return;
+  }
+
+  int right_merge_stats =
+      find_merge_nodes(node->right, 1, node, false, right_merge_nodes);
+  if (right_merge_stats == M_NO) {
+    return;
+  }
+
+  if (left_merge_stats != right_merge_stats) {
+    return;
+  }
+
+  int max_left_path_length = 0, max_right_path_length = 0;
+  for (auto& entry : left_merge_nodes) {
+    max_left_path_length = std::max(max_left_path_length, std::get<1>(entry));
+  }
+  for (auto& entry : right_merge_nodes) {
+    max_right_path_length = std::max(max_right_path_length, std::get<1>(entry));
+  }
+
+  std::vector<std::shared_ptr<TreeNode>> left_merge_nodes_only,
+      right_merge_nodes_only;
+  for (auto& entry : left_merge_nodes) {
+    left_merge_nodes_only.push_back(std::get<0>(entry));
+  }
+  for (auto& entry : right_merge_nodes) {
+    right_merge_nodes_only.push_back(std::get<0>(entry));
+  }
+
+  if (!left_merge_nodes_only.empty() && !right_merge_nodes_only.empty()) {
+    return;
+  }
+
+  if (!left_merge_nodes_only.empty()) {
+    if (node->left == left_merge_nodes_only[0]){
+      merge(node, left_merge_nodes_only, true);
+      return;
+    }
+    return;
+  }
+  if (node->right == right_merge_nodes_only[0]){
+    merge(node, right_merge_nodes_only, false);
+    return;
+  }
+  return;
+}
+
 class DTMergeRule {
  public:
   static std::string apply(ModelProto& mp_in, std::shared_ptr<Graph>& graph,
@@ -1454,6 +1513,64 @@ class DTMergeRule {
     // outputfile << "toTree time cost (s): " << duration.count() / 1000 <<
     // "\n"; outputfile.close();
     return saveModelWithNewName(mp_in, graph, model_path, "merged");
+  }
+
+  static std::string match(std::string& model_path, int threads_count) {
+    std::string output_model_path = model_path;
+    ModelProto mp_in;
+    loadModel(&mp_in, model_path, true);
+    std::shared_ptr<Graph> graph = std::move(ImportModelProto(mp_in));
+
+    bool found = false;
+    Node* treeNode;
+    graph->forEachNode([&found, &treeNode](Node* node) {
+      if (node->hasAttribute(Symbol("target_treeids"))) {
+        auto target_treeids = node->is(Symbol("target_treeids"));
+        if (node->s(Symbol("post_transform")) == "NONE") {
+          found = true;
+          treeNode = node;
+        }
+      }
+    });
+
+    if (found)
+      output_model_path =
+          apply(mp_in, graph, model_path, treeNode, threads_count);
+
+    return output_model_path;
+  }
+};
+
+class DTNaiveMergeRule {
+ public:
+  static std::string apply(ModelProto& mp_in, std::shared_ptr<Graph>& graph,
+                           std::string& model_path, Node* treeNode,
+                           int threads_count) {
+    // std::ofstream outputfile(
+    //     "/volumn/duckdb/examples/embedded-c++/workload/DTMergeRule_cost.txt",
+    //     std::ios::app);
+    // auto start = std::chrono::high_resolution_clock::now();
+    auto roots = model2trees(treeNode, threads_count);
+    // auto end = std::chrono::high_resolution_clock::now();
+    // std::chrono::duration<double, std::milli> duration = end - start;
+    // outputfile << "model2trees time cost (s): " << duration.count() / 1000
+    //            << "\n";
+    // start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < roots.size(); i++) {
+      dfs_naive(roots[i]);
+    }
+    // end = std::chrono::high_resolution_clock::now();
+    // duration = end - start;
+    // outputfile << "dfs time cost (s): " << duration.count() / 1000 << "\n";
+
+    // start = std::chrono::high_resolution_clock::now();
+    auto regressor = TreeEnsembleRegressor::from_trees(roots);
+    toTrees(treeNode, regressor);
+    // end = std::chrono::high_resolution_clock::now();
+    // duration = end - start;
+    // outputfile << "toTree time cost (s): " << duration.count() / 1000 <<
+    // "\n"; outputfile.close();
+    return saveModelWithNewName(mp_in, graph, model_path, "naive_merged");
   }
 
   static std::string match(std::string& model_path, int threads_count) {

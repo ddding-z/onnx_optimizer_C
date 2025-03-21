@@ -40,7 +40,7 @@ void add_prefix_on_model(std::string& changed_model_path, std::string& output_mo
  *        2. prune
  *        3. merge
  * @param input_model_path
- * @param comparison_operator 1: ==, 2: <, 3: <=, 4: >, 5: >= 
+ * @param comparison_operator 0: ==, 1: <, 2: <=, 3: >, 4: >= 
  * @param threshold 
  * @param threads_count default=1 
  * @return optimized model path
@@ -50,6 +50,7 @@ std::string optimize_on_decision_tree_predicate(std::string& input_model_path, u
 std::string optimize_on_decision_tree_predicate_convert(std::string& input_model_path);
 std::string optimize_on_decision_tree_predicate_prune(std::string& input_model_path, uint8_t comparison_operator, float threshold, int threads_count = 1);
 std::string optimize_on_decision_tree_predicate_merge(std::string& input_model_path, int threads_count = 1);
+std::string optimize_on_decision_tree_predicate_naive_merge(std::string& input_model_path, int threads_count = 1);
 
 
 #endif  // ONNX_OPTIMIZER_OPTIMIZE_C_API_H
