@@ -76,6 +76,9 @@ std::string optimize_on_decision_tree_predicate_merge(std::string& input_model_p
 std::string optimize_on_decision_tree_predicate_naive_merge(std::string& input_model_path, int threads_count){
     return onnx::optimization::DTNaiveMergeRule::match(input_model_path, threads_count);
 }
+int get_decision_tree_labels_size(std::string& input_model_path){
+    return onnx::optimization::DTConvertRule::getLabelsSize(input_model_path);
+}
 
 
 // -----------------------

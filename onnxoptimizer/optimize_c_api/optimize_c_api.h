@@ -52,6 +52,8 @@ std::string optimize_on_decision_tree_predicate_prune(std::string& input_model_p
 std::string optimize_on_decision_tree_predicate_merge(std::string& input_model_path, int threads_count = 1);
 std::string optimize_on_decision_tree_predicate_naive_merge(std::string& input_model_path, int threads_count = 1);
 
+int get_decision_tree_labels_size(std::string& input_model_path);
+
 
 #endif  // ONNX_OPTIMIZER_OPTIMIZE_C_API_H
 

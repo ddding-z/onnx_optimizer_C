@@ -230,13 +230,11 @@ class DTConvertRule {
       auto node = g_m->node(i);
       if (node.op_type() == "TreeEnsembleClassifier") {
         g_m->mutable_node()->DeleteSubrange(i, 1);
-      }
-      else if (node.op_type() == "ZipMap") {
+      } else if (node.op_type() == "ZipMap") {
         if (node.input()[0] == "probabilities") {
           g_m->mutable_node()->DeleteSubrange(i, 1);
         }
-      }
-      else if (node.op_type() == "Cast") {
+      } else if (node.op_type() == "Cast") {
         if (node.input()[0] == "label") {
           g_m->mutable_node()->DeleteSubrange(i, 1);
         }
@@ -276,7 +274,6 @@ class DTConvertRule {
     Node* treeNode;
     graph->forEachNode([&found, &treeNode](Node* node) {
       if (node->hasAttribute(Symbol("class_treeids"))) {
-        auto class_treeids = node->is(Symbol("class_treeids"));
         if (node->s(Symbol("post_transform")) == "NONE") {
           found = true;
           treeNode = node;
@@ -288,6 +285,21 @@ class DTConvertRule {
       output_model_path = apply(mp_in, graph, treeNode, model_path);
 
     return output_model_path;
+  }
+
+  static int getLabelsSize(std::string& model_path) {    
+    ModelProto mp_in;
+    loadModel(&mp_in, model_path, true);
+    std::shared_ptr<Graph> graph = std::move(ImportModelProto(mp_in));
+
+    int count = 2;
+    graph->forEachNode([&count](Node* node) {
+      if (node->hasAttribute(Symbol("classlabels_int64s"))) {
+        auto classlabels_int64s = node->is(Symbol("classlabels_int64s"));
+        count = classlabels_int64s.size();
+      }
+    });
+    return count;
   }
 };
 
@@ -715,7 +727,7 @@ class DTPruneRule {
                            std::string& model_path, Node* treeNode,
                            uint8_t comparison_operator, float threshold) {
     auto tree_intervals = getTreeIntervals(treeNode);
-    // only original reggressor need
+    // only original regressor need
     if (model_path.find("reg") == std::string::npos) {
       threshold /= tree_intervals.size();
     }
@@ -1470,13 +1482,13 @@ void dfs_naive(std::shared_ptr<TreeNode> node) {
   }
 
   if (!left_merge_nodes_only.empty()) {
-    if (node->left == left_merge_nodes_only[0]){
+    if (node->left == left_merge_nodes_only[0]) {
       merge(node, left_merge_nodes_only, true);
       return;
     }
     return;
   }
-  if (node->right == right_merge_nodes_only[0]){
+  if (node->right == right_merge_nodes_only[0]) {
     merge(node, right_merge_nodes_only, false);
     return;
   }
