@@ -287,7 +287,7 @@ class DTConvertRule {
     return output_model_path;
   }
 
-  static int getLabelsSize(std::string& model_path) {    
+  static int getLabelsSize(std::string& model_path) {
     ModelProto mp_in;
     loadModel(&mp_in, model_path, true);
     std::shared_ptr<Graph> graph = std::move(ImportModelProto(mp_in));
@@ -483,6 +483,86 @@ class DTPruneRule {
           computed_result[curr_id] = 2;
         }
         s.pop();
+      }
+    }
+  }
+  
+  static void pruning_loop_optimized(size_t tree_no,
+                            const std::tuple<int, int>& tree_interval,
+                            std::vector<std::string>& result_nodes,
+                            Node* treeNode, uint8_t comparison_operator,
+                            float threshold) {
+    int tree_start = std::get<0>(tree_interval);
+    int tree_end   = std::get<1>(tree_interval);
+    size_t n_nodes = tree_end - tree_start;
+
+    const auto& left_nodess  = treeNode->is(Symbol("nodes_truenodeids"));
+    const auto& right_nodess = treeNode->is(Symbol("nodes_falsenodeids"));
+    const auto& node_typess  = treeNode->ss(Symbol("nodes_modes"));
+    const int64_t* left_nodes_ptr  = left_nodess.data() + tree_start;
+    const int64_t* right_nodes_ptr = right_nodess.data() + tree_start;
+    const std::string* node_types_ptr = node_typess.data() + tree_start;
+
+    const auto& target_treeids = treeNode->is(Symbol("target_treeids"));
+    const auto& target_nodeids = treeNode->is(Symbol("target_nodeids"));
+    const auto& target_weights = treeNode->fs(Symbol("target_weights"));
+    
+    std::unordered_map<int, size_t> target_index;
+    target_index.reserve(target_nodeids.size());
+    for (size_t ti = 0; ti < target_nodeids.size(); ++ti) {
+      if (target_treeids[ti] == tree_no) {
+        target_index[target_nodeids[ti]] = ti;
+      }
+    }
+
+    std::vector<int> computed_result(n_nodes, -1);
+
+    struct StackFrame {
+      int64_t node_id;
+      bool visited;
+    };
+    std::vector<StackFrame> stack;
+    stack.reserve(n_nodes);
+    stack.push_back({0, false});
+
+    while (!stack.empty()) {
+      auto& frame = stack.back();
+      size_t curr_id = static_cast<size_t>(frame.node_id);
+
+      if (!frame.visited) {
+        if (node_types_ptr[curr_id] == "LEAF") {
+          auto it = target_index.find(static_cast<int>(curr_id));
+          int target_idx = (it != target_index.end() ? it->second : -1);
+          int result = comparison_funcs[comparison_operator](target_weights[target_idx], threshold);
+          result_nodes[curr_id] = (result == 1) ? "LEAF_TRUE" : "LEAF_FALSE";
+          computed_result[curr_id] = result;
+          stack.pop_back();
+        } else {
+          result_nodes[curr_id] = node_types_ptr[curr_id];
+          frame.visited = true;
+          stack.push_back({right_nodes_ptr[curr_id], false});
+          stack.push_back({left_nodes_ptr[curr_id], false});
+        }
+      } else {
+        size_t left_id = static_cast<size_t>(left_nodes_ptr[curr_id]);
+        size_t right_id = static_cast<size_t>(right_nodes_ptr[curr_id]);
+        int left_res = computed_result[left_id];
+        int right_res = computed_result[right_id];
+
+        if (left_res == 0 && right_res == 0) {
+          result_nodes[curr_id] = "LEAF_FALSE";
+          result_nodes[left_id] = "REMOVED";
+          result_nodes[right_id] = "REMOVED";
+          computed_result[curr_id] = 0;
+        } else if (left_res == 1 && right_res == 1) {
+          result_nodes[curr_id] = "LEAF_TRUE";
+          result_nodes[left_id] = "REMOVED";
+          result_nodes[right_id] = "REMOVED";
+          computed_result[curr_id] = 1;
+        } else {
+          computed_result[curr_id] = 2;
+        }
+        stack.pop_back();
       }
     }
   }
@@ -738,6 +818,10 @@ class DTPruneRule {
       int end = std::get<1>(interval);
       result_nodes_list.push_back(std::vector<std::string>(end - start, ""));
     }
+    std::ofstream outputfile(
+      "/volumn/Retree_exp/DTPruneRule.csv",
+      std::ios::app);
+    auto start = std::chrono::high_resolution_clock::now();
     if (threads_count == 1) {
       for (size_t tree_no = 0; tree_no < result_nodes_list.size(); ++tree_no) {
         auto& result_nodes = result_nodes_list[tree_no];
@@ -753,6 +837,8 @@ class DTPruneRule {
         futures.push_back(pool.enqueue([&, tree_no]() {
           auto& result_nodes = result_nodes_list[tree_no];
           const auto& tree_interval = tree_intervals[tree_no];
+          // pruning_loop_optimized(tree_no, tree_interval, result_nodes, treeNode,
+          //              comparison_operator, threshold);
           pruning_loop(tree_no, tree_interval, result_nodes, treeNode,
                        comparison_operator, threshold);
         }));
@@ -761,7 +847,10 @@ class DTPruneRule {
         fut.get();
       }
     }
-
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> prune_duration =
+        end - start;
+    outputfile << model_path << "," << std::to_string(threshold) << "," << prune_duration.count() << "\n";
     if (processNode(treeNode, result_nodes_list, tree_intervals)) {
       return saveModelWithNewName(mp_in, graph, model_path,
                                   "pruned" + std::to_string(threshold));
@@ -1501,29 +1590,29 @@ class DTMergeRule {
                            std::string& model_path, Node* treeNode,
                            int threads_count) {
     // std::ofstream outputfile(
-    //     "/volumn/duckdb/examples/embedded-c++/workload/DTMergeRule_cost.txt",
+    //     "/volumn/Retree_exp/DTMergeRule.csv",
     //     std::ios::app);
     // auto start = std::chrono::high_resolution_clock::now();
     auto roots = model2trees(treeNode, threads_count);
     // auto end = std::chrono::high_resolution_clock::now();
-    // std::chrono::duration<double, std::milli> duration = end - start;
-    // outputfile << "model2trees time cost (s): " << duration.count() / 1000
-    //            << "\n";
+    // std::chrono::duration<double, std::milli> model2trees_duration =
+    //     end - start;
+
     // start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < roots.size(); i++) {
       dfs(roots[i]);
     }
     // end = std::chrono::high_resolution_clock::now();
-    // duration = end - start;
-    // outputfile << "dfs time cost (s): " << duration.count() / 1000 << "\n";
+    // std::chrono::duration<double, std::milli> dfs_duration = end - start;
 
     // start = std::chrono::high_resolution_clock::now();
     auto regressor = TreeEnsembleRegressor::from_trees(roots);
     toTrees(treeNode, regressor);
     // end = std::chrono::high_resolution_clock::now();
-    // duration = end - start;
-    // outputfile << "toTree time cost (s): " << duration.count() / 1000 <<
-    // "\n"; outputfile.close();
+    // std::chrono::duration<double, std::milli> toTrees_duration = end - start;
+    // outputfile << model_path << "," << model2trees_duration.count()
+    //            << "," << dfs_duration.count() << ","
+    //            << toTrees_duration.count() << "\n";
     return saveModelWithNewName(mp_in, graph, model_path, "merged");
   }
 
