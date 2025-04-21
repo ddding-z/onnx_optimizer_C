@@ -88,6 +88,18 @@ target_link_libraries(redundant_example optimize_c_api)
 onnxopt_add_executable(optimize_dt_example examples/optimizer_c_example/optimize_dt_example.cpp)
 target_link_libraries(optimize_dt_example optimize_c_api)
 
+# onnxopt_add_executable(optimizer_example examples/optimizer_c_example/optimize_example.cpp)
+# target_link_libraries(optimizer_example optimize_c_api onnx_optimizer)
+
+# onnxopt_add_executable(predicate_example examples/optimizer_c_example/predicate_example.cpp)
+# target_link_libraries(predicate_example optimize_c_api onnx_optimizer)
+
+# onnxopt_add_executable(redundant_example examples/optimizer_c_example/redundant.cpp)
+# target_link_libraries(redundant_example optimize_c_api onnx_optimizer)
+
+# onnxopt_add_executable(optimize_dt_example examples/optimizer_c_example/optimize_dt_example.cpp)
+# target_link_libraries(optimize_dt_example optimize_c_api onnx_optimizer)
+
 #configure_file(onnxoptimizer/value_info/int_value_info.onnx
 #        ${CMAKE_BINARY_DIR}/int_value_info.onnx COPYONLY)
 #if(BUILD_ONNX_PYTHON)

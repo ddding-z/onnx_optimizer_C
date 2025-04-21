@@ -45,8 +45,8 @@ void add_prefix_on_model(std::string& changed_model_path, std::string& output_mo
  * @param threads_count default=1 
  * @return optimized model path
  */
-std::string optimize_on_decision_tree_predicate(std::string& input_model_path, uint8_t comparison_operator, float threshold, int threads_count = 1);
-
+std::string optimize_on_decision_tree_predicate(std::string& input_model_path, uint8_t comparison_operator, float threshold, int nthreads = 1);
+std::string optimize_on_decision_tree_predicate_opt_level_0(std::string& input_model_path, uint8_t comparison_operator, float threshold, int nthreads = 1);
 std::string optimize_on_decision_tree_predicate_convert(std::string& input_model_path);
 std::string optimize_on_decision_tree_predicate_prune(std::string& input_model_path, uint8_t comparison_operator, float threshold, int threads_count = 1);
 std::string optimize_on_decision_tree_predicate_merge(std::string& input_model_path, int threads_count = 1);

@@ -6,7 +6,9 @@
 
 #include "optimize_c_api.h"
 //#include "onnxoptimizer/query_c_api/model_merge.cpp"
-#include "onnxoptimizer/query_c_api/decision_tree_predicate.cpp"
+// #include "onnxoptimizer/query_c_api/decision_tree_predicate.cpp"
+// #include "onnxoptimizer/query_c_api/retree.cpp"
+#include "onnxoptimizer/query_c_api/retree.h"
 #include "onnxoptimizer/query_c_api/predicate_push_down.cpp"
 #include "onnxoptimizer/query_c_api/redundant_calculation_detection.cpp"
 
@@ -55,11 +57,19 @@ void add_prefix_on_model(std::string& changed_model_path, std::string& output_mo
 }
 
 std::string optimize_on_decision_tree_predicate(std::string& input_model_path, uint8_t comparison_operator,
-                float threshold, int threads_count) {
-    std::string mp1 = onnx::optimization::DTConvertRule::match(input_model_path);
-	std::string mp2 = onnx::optimization::DTPruneRule::match(mp1, comparison_operator, threshold, threads_count);
-	return onnx::optimization::DTMergeRule::match(mp2, threads_count);
+                float threshold, int nthreads) {
+	return onnx::optimization::ReTreeRule::match(input_model_path, comparison_operator, threshold, nthreads, 1);
 }
+std::string optimize_on_decision_tree_predicate_opt_level_0(std::string& input_model_path, uint8_t comparison_operator,
+                float threshold, int nthreads) {
+	return onnx::optimization::ReTreeRule::match(input_model_path, comparison_operator, threshold, nthreads, 0);
+}
+// std::string optimize_on_decision_tree_predicate(std::string& input_model_path, uint8_t comparison_operator,
+//                 float threshold, int nthreads) {
+//     std::string mp1 = onnx::optimization::DTConvertRule::match(input_model_path);
+// 	std::string mp2 = onnx::optimization::DTPruneRule::match(mp1, comparison_operator, threshold, nthreads);
+// 	return onnx::optimization::DTMergeRule::match(mp2, nthreads);
+// }
 
 std::string optimize_on_decision_tree_predicate_convert(std::string& input_model_path){
     return onnx::optimization::DTConvertRule::match(input_model_path);
